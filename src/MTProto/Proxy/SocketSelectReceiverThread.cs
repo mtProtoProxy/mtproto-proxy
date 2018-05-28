@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Net.Sockets;
 
@@ -6,6 +7,8 @@ namespace MTProto.Proxy
 {
     public class SocketSelectReceiverThread
     {
+        const int ReceiveTimeout = 30 * 1000;
+
         private object SwitchStateLock = new object();
         private object SelectLock = new object();
 
@@ -33,6 +36,7 @@ namespace MTProto.Proxy
                     Start();
                 }
             }
+            connection.Socket.ReceiveTimeout = ReceiveTimeout;
         }
         public void RemoveConnection(ProxyConnection connection)
         {
@@ -95,7 +99,7 @@ namespace MTProto.Proxy
                             {
                                 continue;
                             }
-                            if (con.Socket.Connected)
+                            if (con.Socket.Connected && (DateTime.Now - con.ActivityTime).TotalMilliseconds < ReceiveTimeout)
                             {
                                 ToRead.Add(con.Socket);
                                 ToError.Add(con.Socket);
@@ -117,6 +121,10 @@ namespace MTProto.Proxy
                         continue;
                     }
                     Socket.Select(ToRead, null, ToError, Timeout);
+                    if (ToRead.Count > 0)
+                    {
+                        Socket.Select(null, ToRead, ToError, 1); // allow read only if can write
+                    }
                     foreach (var skt in ToRead)
                     {
                         var con = SocketConnections[skt];
@@ -146,6 +154,10 @@ namespace MTProto.Proxy
                     foreach (var skt in ToError)
                     {
                         SocketConnections[skt].Close();
+                    }
+                    if (ToRead.Count + ToError.Count != 0)
+                    {
+                        Waiter.SleepMicro(Timeout);
                     }
                 }
             }

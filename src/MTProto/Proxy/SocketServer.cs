@@ -54,7 +54,9 @@ namespace MTProto.Proxy
                 {
                     return;
                 }
+                ServerSocket.Shutdown(SocketShutdown.Both);
                 ServerSocket.Close();
+                using (ServerSocket) { }
                 ServerSocket = null;
                 Works = false;
             }
@@ -62,7 +64,6 @@ namespace MTProto.Proxy
 
         protected virtual void ProcessAccepted(Socket socket)
         {
-            socket.Blocking = false;
             var connection = new ProxyConnection(socket, Context, Connections);
             Connections.Register(connection);
         }
